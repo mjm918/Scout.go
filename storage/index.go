@@ -81,7 +81,7 @@ func createIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *zap
 	} else {
 		// open existing index
 		index, err = bleve.OpenUsing(dir, map[string]interface{}{
-			"create_if_missing": false,
+			"create_if_missing": true,
 			"error_if_exists":   false,
 		})
 		if err != nil {

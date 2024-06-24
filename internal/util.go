@@ -17,29 +17,26 @@ func LogPath() string {
 }
 
 func IndexPath(name string) string {
-	dir, err := createDir(path.Join(BaseConfigDir(), name))
-	if err != nil {
-		fmt.Println(fmt.Errorf("%v", err))
-	}
-	return dir
+	return path.Join(BaseConfigDir(), name)
 }
 
 func BaseConfigDir() string {
-	dir, _ := createDir(".db")
+	dir, _ := createDir("_store_")
 	return dir
 }
 
 func BaseLogDir() string {
-	dir, _ := createDir(".logs")
+	dir, _ := createDir("_logs_")
 	return dir
 }
 
 func createDir(name string) (string, error) {
-	if _, err := os.Stat(name); !os.IsNotExist(err) {
+	_, err := os.Stat(name)
+	if err == nil {
 		return name, nil
 	}
-	err := os.Mkdir(name, 0750)
-	if err != nil && !os.IsExist(err) {
+	err = os.MkdirAll(name, os.ModePerm)
+	if err == nil {
 		return name, nil
 	}
 	return path.Join(os.TempDir(), name), err

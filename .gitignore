@@ -24,3 +24,6 @@ go.work
 .db/
 
 .logs/
+/_logs_/
+
+/_store_/
