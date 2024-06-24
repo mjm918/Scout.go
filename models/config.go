@@ -5,8 +5,10 @@ import "errors"
 type FieldType string
 
 const (
-	String FieldType = "string"
-	Number FieldType = "number"
+	String   FieldType = "string"
+	Number   FieldType = "number"
+	DateTime FieldType = "datetime"
+	Boolean  FieldType = "boolean"
 )
 
 type IndexSearchable struct {

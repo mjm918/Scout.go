@@ -40,6 +40,18 @@ func NewIndex(config models.IndexMapConfig) (*Index, error) {
 			numericFieldMapping.DocValues = true
 			docMap.AddFieldMappingsAt(searchable.Field, numericFieldMapping)
 		}
+		if searchable.Type == models.Boolean {
+			boolFieldMapping := bleve.NewBooleanFieldMapping()
+			boolFieldMapping.Store = false
+			boolFieldMapping.DocValues = true
+			docMap.AddFieldMappingsAt(searchable.Field, boolFieldMapping)
+		}
+		if searchable.Type == models.DateTime {
+			dateTimeFieldMapping := bleve.NewDateTimeFieldMapping()
+			dateTimeFieldMapping.Store = false
+			dateTimeFieldMapping.DocValues = true
+			docMap.AddFieldMappingsAt(searchable.Field, dateTimeFieldMapping)
+		}
 	}
 
 	mapper := mapping.NewIndexMapping()
