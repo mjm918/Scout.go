@@ -31,6 +31,8 @@ func StartServer(log *zap.Logger) {
 
 	// route setup - start
 	router.GET("/ping", controllers.Ping)
+	router.GET("/indexes", controllers.GetConfig)
+	router.PUT("/config", controllers.PutConfig)
 	// route setup - end
 
 	srv := &http.Server{

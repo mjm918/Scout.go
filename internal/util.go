@@ -1,27 +1,36 @@
 package internal
 
 import (
+	"fmt"
 	"os"
 	"path"
+	"time"
 )
 
 func ConfigPath() string {
-	dir := path.Join(baseDir(), "internal.db")
+	dir := path.Join(BaseConfigDir(), "internal.db")
 	return dir
 }
 
 func LogPath() string {
-	dir, _ := createDir(".logs")
-	return path.Join(dir, "engine.log")
+	return path.Join(BaseLogDir(), "engine.jsonl")
 }
 
 func IndexPath(name string) string {
-	dir, _ := createDir(path.Join(ConfigPath(), name))
+	dir, err := createDir(path.Join(BaseConfigDir(), name))
+	if err != nil {
+		fmt.Println(fmt.Errorf("%v", err))
+	}
 	return dir
 }
 
-func baseDir() string {
+func BaseConfigDir() string {
 	dir, _ := createDir(".db")
+	return dir
+}
+
+func BaseLogDir() string {
+	dir, _ := createDir(".logs")
 	return dir
 }
 
@@ -34,4 +43,8 @@ func createDir(name string) (string, error) {
 		return name, nil
 	}
 	return path.Join(os.TempDir(), name), err
+}
+
+func Elapsed(start time.Time) string {
+	return fmt.Sprintf("%v", time.Since(start))
 }

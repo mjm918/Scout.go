@@ -1,6 +1,7 @@
 package log
 
 import (
+	"Scout.go/internal"
 	accesslog "github.com/mash/go-accesslog"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"strconv"
 )
+
+var L = NewLogger("DEBUG", internal.LogPath(), 10, 10, 1, false)
 
 func NewLogger(logLevel string, logFilename string, logMaxSize int, logMaxBackups int, logMaxAge int, logCompress bool) *zap.Logger {
 	var ll zapcore.Level

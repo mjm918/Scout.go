@@ -1,7 +1,6 @@
 package internal
 
 type IdxConfig struct {
-	ID         uint   `json:"id" gorm:"primary_key"`
-	Name       string `json:"name"`
+	Name       string `json:"name" gorm:"unique"`
 	Searchable string `json:"searchable"`
 }

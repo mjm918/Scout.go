@@ -21,9 +21,9 @@ func main() {
 		log.Fatal(err.Error())
 		return
 	}
-
+	internal.BaseLogDir()
+	internal.BaseConfigDir()
 	internal.ConnectDatabase()
-	zapLogger := logger.NewLogger("DEBUG", internal.LogPath(), 10, 10, 1, false)
 
-	server.StartServer(zapLogger)
+	server.StartServer(logger.L)
 }

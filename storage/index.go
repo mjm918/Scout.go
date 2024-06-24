@@ -2,7 +2,11 @@ package storage
 
 import (
 	"Scout.go/errors"
+	"Scout.go/internal"
+	"Scout.go/log"
+	"Scout.go/models"
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/analysis/analyzer/standard"
 	"github.com/blevesearch/bleve/v2/index/scorch"
 	"github.com/blevesearch/bleve/v2/mapping"
 	bleveindex "github.com/blevesearch/bleve_index_api"
@@ -18,7 +22,41 @@ type Index struct {
 	index bleve.Index
 }
 
-func NewIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *zap.Logger) (*Index, error) {
+func NewIndex(config models.IndexMapConfig) (*Index, error) {
+	dir := internal.IndexPath(config.Index)
+
+	docMap := bleve.NewDocumentMapping()
+
+	for _, searchable := range config.Searchable {
+		if searchable.Type == models.String {
+			textFieldMapping := bleve.NewTextFieldMapping()
+			textFieldMapping.Analyzer = standard.Name
+			textFieldMapping.Store = false
+			docMap.AddFieldMappingsAt(searchable.Field, textFieldMapping)
+		}
+		if searchable.Type == models.Number {
+			numericFieldMapping := bleve.NewNumericFieldMapping()
+			numericFieldMapping.Store = false
+			numericFieldMapping.DocValues = true
+			docMap.AddFieldMappingsAt(searchable.Field, numericFieldMapping)
+		}
+	}
+
+	mapper := mapping.NewIndexMapping()
+	mapper.DefaultMapping = docMap
+
+	if err := mapper.Validate(); err != nil {
+		return nil, err
+	}
+
+	idx, err := createIndex(dir, mapper, log.L)
+	if err != nil {
+		return nil, err
+	}
+	return idx, nil
+}
+
+func createIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *zap.Logger) (*Index, error) {
 	var index bleve.Index
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
