@@ -2,11 +2,11 @@ package storage
 
 import (
 	"Scout.go/errors"
-	"Scout.go/internal"
 	"Scout.go/log"
+	scoutmap "Scout.go/mapping"
 	"Scout.go/models"
+	"Scout.go/util"
 	"github.com/blevesearch/bleve/v2"
-	"github.com/blevesearch/bleve/v2/analysis/analyzer/standard"
 	"github.com/blevesearch/bleve/v2/index/scorch"
 	"github.com/blevesearch/bleve/v2/mapping"
 	bleveindex "github.com/blevesearch/bleve_index_api"
@@ -23,44 +23,11 @@ type Index struct {
 }
 
 func NewIndex(config models.IndexMapConfig) (*Index, error) {
-	dir := internal.IndexPath(config.Index)
-
-	docMap := bleve.NewDocumentMapping()
-
-	for _, searchable := range config.Searchable {
-		if searchable.Type == models.String {
-			textFieldMapping := bleve.NewTextFieldMapping()
-			textFieldMapping.Analyzer = standard.Name
-			textFieldMapping.Store = false
-			docMap.AddFieldMappingsAt(searchable.Field, textFieldMapping)
-		}
-		if searchable.Type == models.Number {
-			numericFieldMapping := bleve.NewNumericFieldMapping()
-			numericFieldMapping.Store = false
-			numericFieldMapping.DocValues = true
-			docMap.AddFieldMappingsAt(searchable.Field, numericFieldMapping)
-		}
-		if searchable.Type == models.Boolean {
-			boolFieldMapping := bleve.NewBooleanFieldMapping()
-			boolFieldMapping.Store = false
-			boolFieldMapping.DocValues = true
-			docMap.AddFieldMappingsAt(searchable.Field, boolFieldMapping)
-		}
-		if searchable.Type == models.DateTime {
-			dateTimeFieldMapping := bleve.NewDateTimeFieldMapping()
-			dateTimeFieldMapping.Store = false
-			dateTimeFieldMapping.DocValues = true
-			docMap.AddFieldMappingsAt(searchable.Field, dateTimeFieldMapping)
-		}
-	}
-
-	mapper := mapping.NewIndexMapping()
-	mapper.DefaultMapping = docMap
-
-	if err := mapper.Validate(); err != nil {
+	dir := util.IndexPath(config.Index)
+	mapper, err := scoutmap.NewIndexMapping(config)
+	if err != nil {
 		return nil, err
 	}
-
 	idx, err := createIndex(dir, mapper, log.L)
 	if err != nil {
 		return nil, err

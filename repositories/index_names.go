@@ -3,6 +3,7 @@ package repositories
 import (
 	"Scout.go/internal"
 	"Scout.go/models"
+	"Scout.go/util"
 	"time"
 )
 
@@ -17,7 +18,7 @@ func GetIndexes() models.IndexNames {
 	for i := range configs {
 		names.Indexes[i] = configs[i].Name
 	}
-	names.Execution = internal.Elapsed(start)
+	names.Execution = util.Elapsed(start)
 
 	return names
 }

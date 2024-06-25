@@ -6,6 +6,7 @@ import (
 	"Scout.go/models"
 	"Scout.go/reg"
 	"Scout.go/storage"
+	"Scout.go/util"
 	"github.com/goccy/go-json"
 	"time"
 )
@@ -29,12 +30,16 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfig, error) {
 		Name:       payload.Index,
 		Searchable: string(searchable),
 	}
+
+	// TODO: Check if Update Is Required
+	updateIdxErr := UpdateIndex(payload)
+
 	affected := internal.DB.Model(&rec).Where("name = ?", payload.Index).Updates(&rec).RowsAffected
 	if affected == 0 {
 		affected = internal.DB.Create(&rec).RowsAffected
 	}
-	updateIdxErr := UpdateIndex(payload)
-	status.Execution = internal.Elapsed(start)
+
+	status.Execution = util.Elapsed(start)
 	status.Status = updateIdxErr == nil
 	status.Index = payload.Index
 

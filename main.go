@@ -4,6 +4,7 @@ import (
 	"Scout.go/internal"
 	logger "Scout.go/log"
 	"Scout.go/server"
+	"Scout.go/util"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
@@ -21,9 +22,10 @@ func main() {
 		log.Fatal(err.Error())
 		return
 	}
-	internal.BaseLogDir()
-	internal.BaseConfigDir()
+	util.BaseLogDir()
+	util.BaseConfigDir()
 	internal.ConnectDatabase()
+	internal.BootIndexesToRegistry()
 
 	server.StartServer(logger.L)
 }

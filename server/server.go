@@ -1,7 +1,7 @@
 package server
 
 import (
-	"Scout.go/controllers"
+	"Scout.go/routes"
 	"context"
 	"errors"
 	"fmt"
@@ -30,9 +30,9 @@ func StartServer(log *zap.Logger) {
 	// middleware setup - end
 
 	// route setup - start
-	router.GET("/ping", controllers.Ping)
-	router.GET("/indexes", controllers.GetConfig)
-	router.PUT("/config", controllers.PutConfig)
+	router.GET("/ping", routes.Ping)
+	router.GET("/indexes", routes.GetConfig)
+	router.PUT("/config", routes.PutConfig)
 	// route setup - end
 
 	srv := &http.Server{

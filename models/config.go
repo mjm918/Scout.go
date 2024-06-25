@@ -1,6 +1,8 @@
 package models
 
-import "errors"
+import (
+	"errors"
+)
 
 type FieldType string
 
@@ -18,7 +20,7 @@ type IndexSearchable struct {
 
 func (a *IndexSearchable) Validate() error {
 	switch a.Type {
-	case String, Number:
+	case String, Number, DateTime, Boolean:
 		return nil
 	default:
 		return errors.New("invalid field type")

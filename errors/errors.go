@@ -8,6 +8,7 @@ var (
 	ErrNoUpdate         = errors.New("no update")
 	ErrNil              = errors.New("data is nil")
 	ErrUnsupportedEvent = errors.New("unsupported event")
+	ErrBootIndex        = errors.New("error booting index")
 	ErrCreateIndex      = errors.New("failed to create index")
 	ErrOpenIndex        = errors.New("failed to open index")
 	ErrCloseIndex       = errors.New("failed to close index")
