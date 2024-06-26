@@ -36,4 +36,23 @@ type IndexConfig struct {
 	Index     string `json:"index"`
 	Status    bool   `json:"status"`
 	Execution string `json:"execution"`
+	Message   string `json:"message"`
+}
+
+func (a *IndexMapConfig) IsDifferent(other *IndexMapConfig) bool {
+	if a.Index != other.Index {
+		return true
+	}
+	if len(a.Searchable) == 0 {
+		return true
+	}
+	i := 0
+	for _, searchable := range a.Searchable {
+		for _, otherSearchable := range other.Searchable {
+			if searchable.Field == otherSearchable.Field && searchable.Type == otherSearchable.Type {
+				i = i + 1
+			}
+		}
+	}
+	return i != len(other.Searchable)
 }

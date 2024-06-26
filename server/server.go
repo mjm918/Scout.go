@@ -31,8 +31,11 @@ func StartServer(log *zap.Logger) {
 
 	// route setup - start
 	router.GET("/ping", routes.Ping)
-	router.GET("/indexes", routes.GetConfig)
+	router.GET("/indexes", routes.GetIndexes)
+	router.GET("/stats", routes.GetIndexStats)
 	router.PUT("/config", routes.PutConfig)
+	router.POST("/binlog", routes.PostDbConfigPerIndex)
+	router.GET("/binlog", routes.GetDbConfigPerIndex)
 	// route setup - end
 
 	srv := &http.Server{

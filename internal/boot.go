@@ -19,7 +19,7 @@ func BootIndexesToRegistry() {
 			panic(errors.ErrBootIndex)
 		}
 		indexMap.Index = config.Name
-		index, err := storage.NewIndex(indexMap)
+		index, err := storage.NewIndex(&indexMap)
 		if err != nil {
 			panic(errors.ErrBootIndex)
 		}

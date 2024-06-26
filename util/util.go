@@ -20,6 +20,10 @@ func IndexPath(name string) string {
 	return path.Join(BaseConfigDir(), name)
 }
 
+func TempKvPath(name string) string {
+	return path.Join(BaseConfigDir(), "_temp_", name)
+}
+
 func BaseConfigDir() string {
 	dir, _ := createDir("_store_")
 	return dir

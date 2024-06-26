@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-func NewIndexMapping(config models.IndexMapConfig) (*mapping.IndexMappingImpl, error) {
+func NewIndexMapping(config *models.IndexMapConfig) (*mapping.IndexMappingImpl, error) {
 	docMap := bleve.NewDocumentMapping()
 
 	for _, searchable := range config.Searchable {

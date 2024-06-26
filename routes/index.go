@@ -1,8 +1,8 @@
 package routes
 
 import (
+	"Scout.go/engine"
 	"Scout.go/models"
-	"Scout.go/repositories"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -13,7 +13,7 @@ func PutConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	resp, err := repositories.NewIndexConfig(reqBody)
+	resp, err := engine.NewIndexConfig(reqBody)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	} else {
@@ -21,6 +21,10 @@ func PutConfig(c *gin.Context) {
 	}
 }
 
-func GetConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, repositories.GetIndexes())
+func GetIndexes(c *gin.Context) {
+	c.JSON(http.StatusOK, engine.Indexes())
+}
+
+func GetIndexStats(c *gin.Context) {
+	c.JSON(http.StatusOK, engine.IndexStats())
 }

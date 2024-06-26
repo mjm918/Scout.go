@@ -12,6 +12,7 @@ import (
 	bleveindex "github.com/blevesearch/bleve_index_api"
 	"go.uber.org/zap"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -19,10 +20,11 @@ type Index struct {
 	indexMapping *mapping.IndexMappingImpl
 	logger       *zap.Logger
 
-	index bleve.Index
+	index     bleve.Index
+	indexPath string
 }
 
-func NewIndex(config models.IndexMapConfig) (*Index, error) {
+func NewIndex(config *models.IndexMapConfig) (*Index, error) {
 	dir := util.IndexPath(config.Index)
 	mapper, err := scoutmap.NewIndexMapping(config)
 	if err != nil {
@@ -59,6 +61,7 @@ func createIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *zap
 
 	return &Index{
 		index:        index,
+		indexPath:    dir,
 		indexMapping: indexMapping,
 		logger:       logger,
 	}, nil
@@ -215,4 +218,12 @@ func (i *Index) Mapping() *mapping.IndexMappingImpl {
 
 func (i *Index) Stats() map[string]interface{} {
 	return i.index.StatsMap()
+}
+
+func (i *Index) Name() string {
+	return filepath.Base(i.indexPath)
+}
+
+func (i *Index) Path() string {
+	return i.indexPath
 }
