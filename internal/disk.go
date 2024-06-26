@@ -12,7 +12,11 @@ import (
 	"time"
 )
 
-const defaultBucket = "_default_"
+const (
+	DbConfigStore    = "_db_config_"
+	IndexConfigStore = "_index_config_"
+	defaultBucket    = "_default_"
+)
 
 type TempDisk struct {
 	store *bbolt.DB

@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"Scout.go/event"
 	"Scout.go/internal"
+	"Scout.go/models"
 	"Scout.go/util"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -9,7 +11,7 @@ import (
 )
 
 func PostDbConfigPerIndex(c *gin.Context) {
-	var reqBody internal.DbConfig
+	var reqBody models.DbConfig
 	if err := c.ShouldBindJSON(&reqBody); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -31,11 +33,13 @@ func PostDbConfigPerIndex(c *gin.Context) {
 		c.JSON(http.StatusCreated, gin.H{"message": "error saving config", "execution": util.Elapsed(start)})
 		return
 	}
+	// Notify watchman to watch a new server
+	event.PubSubChannel.Publish("db-cnf", &reqBody)
 	c.JSON(http.StatusCreated, gin.H{"message": "database config saved", "execution": util.Elapsed(start)})
 }
 
 func GetDbConfigPerIndex(c *gin.Context) {
-	var result internal.DbConfig
+	var result models.DbConfig
 	start := time.Now()
 	err := internal.DB.GetMap(c.Param("index"), &result, internal.DbConfigStore)
 	if err != nil {

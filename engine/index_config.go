@@ -7,55 +7,41 @@ import (
 	"Scout.go/reg"
 	"Scout.go/storage"
 	"Scout.go/util"
-	"github.com/goccy/go-json"
 	"go.uber.org/zap"
 	"time"
 )
 
-func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfig, error) {
+func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfigResponse, error) {
 	start := time.Now()
 
 	for _, searchable := range payload.Searchable {
 		if err := searchable.Validate(); err != nil {
-			return models.IndexConfig{}, err
+			return models.IndexConfigResponse{}, err
 		}
 	}
 
-	var status models.IndexConfig
+	var status models.IndexConfigResponse
 	status.Message = "not reindexing as fields are same"
 
-	searchable, err := json.Marshal(payload.Searchable)
-	if err != nil {
-		return status, err
-	}
-
 	// Check if previously inserted config
-	var prevRec internal.IndexConfig
+	var prevRec models.IndexMapConfig
 	var needReindex bool = false
-	err = internal.DB.Find(&prevRec, payload.Index, 1, internal.IndexConfigStore)
+	err := internal.DB.Find(&prevRec, payload.Index, 1, internal.IndexConfigStore)
 	if err != nil {
 		log.L.Error("error getting index config", zap.Error(err))
 	}
-	if prevRec.Name != "" {
+	if prevRec.Index != "" {
 		// Compare with new searchable
 		var tmpRec models.IndexMapConfig
-		err := json.Unmarshal([]byte(prevRec.Searchable), &tmpRec.Searchable)
-		if err == nil {
-			tmpRec.Index = prevRec.Name
-			needReindex = tmpRec.IsDifferent(&payload)
-		}
+		tmpRec.Index = prevRec.Index
+		needReindex = tmpRec.IsDifferent(&payload)
 	} else {
 		needReindex = true
 	}
 
-	rec := internal.IndexConfig{
-		Name:       payload.Index,
-		Searchable: string(searchable),
-	}
-
 	if needReindex {
 		updateIdxErr := UpdateIndex(&payload)
-		err = internal.DB.PutMap(rec.Name, &rec, internal.IndexConfigStore)
+		err = internal.DB.PutMap(payload.Index, &payload, internal.IndexConfigStore)
 		if err != nil {
 			log.L.Error("error putting index config", zap.Error(err))
 		}

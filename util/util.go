@@ -16,6 +16,10 @@ func LogPath() string {
 	return path.Join(BaseLogDir(), "engine.jsonl")
 }
 
+func CanalLogPath() string {
+	return path.Join(BaseLogDir(), "canal.jsonl")
+}
+
 func IndexPath(name string) string {
 	return path.Join(BaseConfigDir(), name)
 }
@@ -66,4 +70,12 @@ func createDir(name string) (string, error) {
 
 func Elapsed(start time.Time) string {
 	return fmt.Sprintf("%v", time.Since(start))
+}
+
+func Map[T, V any](ts []T, fn func(T) V) []V {
+	result := make([]V, len(ts))
+	for i, t := range ts {
+		result[i] = fn(t)
+	}
+	return result
 }

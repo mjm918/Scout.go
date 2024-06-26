@@ -107,3 +107,99 @@ func (l HTTPLogger) Log(record accesslog.LogRecord) {
 		zap.String("user_agent", userAgent),
 	)
 }
+
+var CL = NewCanalLogger()
+
+type CanalLogger struct {
+	Logger *zap.Logger
+}
+
+func (c *CanalLogger) Fatal(args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Fatalf(format string, args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Fatalln(args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Panic(args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Panicf(format string, args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Panicln(args ...interface{}) {
+	c.Logger.Fatal("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Print(args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Printf(format string, args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Println(args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Debug(args ...interface{}) {
+	c.Logger.Debug("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Debugf(format string, args ...interface{}) {
+	c.Logger.Debug("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Debugln(args ...interface{}) {
+	c.Logger.Debug("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Error(args ...interface{}) {
+	c.Logger.Error("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Errorf(format string, args ...interface{}) {
+	c.Logger.Error("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Errorln(args ...interface{}) {
+	c.Logger.Error("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Info(args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Infof(format string, args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Infoln(args ...interface{}) {
+	c.Logger.Info("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Warn(args ...interface{}) {
+	c.Logger.Warn("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Warnf(format string, args ...interface{}) {
+	c.Logger.Warn("canal", zap.Any("args", args))
+}
+
+func (c *CanalLogger) Warnln(args ...interface{}) {
+	c.Logger.Warn("canal", zap.Any("args", args))
+}
+
+func NewCanalLogger() *CanalLogger {
+	return &CanalLogger{
+		Logger: NewLogger("DEBUG", util.CanalLogPath(), 10, 10, 1, false),
+	}
+}

@@ -32,7 +32,7 @@ type IndexMapConfig struct {
 	Searchable []IndexSearchable `json:"searchable"`
 }
 
-type IndexConfig struct {
+type IndexConfigResponse struct {
 	Index     string `json:"index"`
 	Status    bool   `json:"status"`
 	Execution string `json:"execution"`

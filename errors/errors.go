@@ -20,5 +20,6 @@ var (
 	ErrMissingId        = errors.New("missing id")
 	ErrMissingFields    = errors.New("missing fields")
 	ErrIndexBatch       = errors.New("failed to batch index")
-	ErrCreateConfig     = errors.New("failed create internal.db connection")
+	ErrNoWatchTable     = errors.New("no watch table")
+	ErrNoWatchDb        = errors.New("no watch db")
 )

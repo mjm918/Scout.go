@@ -14,7 +14,7 @@ func Indexes() models.IndexNames {
 	start := time.Now()
 
 	var names models.IndexNames
-	var configs []internal.IndexConfig
+	var configs []models.IndexMapConfig
 	err := internal.DB.Find(&configs, "", 0, internal.IndexConfigStore)
 	if err != nil {
 		log.L.Error("indexes error - ", zap.Error(err))
@@ -23,7 +23,7 @@ func Indexes() models.IndexNames {
 
 	names.Indexes = make([]string, len(configs))
 	for i := range configs {
-		names.Indexes[i] = configs[i].Name
+		names.Indexes[i] = configs[i].Index
 	}
 	names.Execution = util.Elapsed(start)
 

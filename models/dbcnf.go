@@ -1,19 +1,9 @@
-package internal
+package models
 
 import (
 	"errors"
 	"github.com/goccy/go-json"
 )
-
-const (
-	DbConfigStore    = "_db_config_"
-	IndexConfigStore = "_index_config_"
-)
-
-type IndexConfig struct {
-	Name       string `json:"name" gorm:"unique"`
-	Searchable string `json:"searchable"`
-}
 
 type DbConfig struct {
 	Host         string `json:"host"`
@@ -21,7 +11,7 @@ type DbConfig struct {
 	User         string `json:"user"`
 	Password     string `json:"password"`
 	Database     string `json:"database"`
-	Index        string `json:"index" gorm:"unique"`
+	Index        string `json:"index"`
 	WatchTable   string `json:"watch_table"`
 	MakerHook    string `json:"maker_hook"`
 	MakerHeaders string `json:"maker_headers"`
@@ -33,4 +23,12 @@ func (a *DbConfig) Validate() error {
 		return errors.New("invalid db config - " + string(j))
 	}
 	return nil
+}
+
+func (a *DbConfig) SafePort() uint {
+	if a.Port == 0 {
+		return 3306
+	} else {
+		return a.Port
+	}
 }
