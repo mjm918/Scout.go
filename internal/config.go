@@ -5,7 +5,12 @@ import (
 	"github.com/goccy/go-json"
 )
 
-type IdxConfig struct {
+const (
+	DbConfigStore    = "_db_config_"
+	IndexConfigStore = "_index_config_"
+)
+
+type IndexConfig struct {
 	Name       string `json:"name" gorm:"unique"`
 	Searchable string `json:"searchable"`
 }

@@ -20,8 +20,26 @@ func IndexPath(name string) string {
 	return path.Join(BaseConfigDir(), name)
 }
 
-func TempKvPath(name string) string {
-	return path.Join(BaseConfigDir(), "_temp_", name)
+func TempKvExists(loc, name string) bool {
+	fileLoc := path.Join("_store_", loc, name)
+	stat, err := os.Stat(fileLoc)
+	if err != nil {
+		return false
+	}
+	return !stat.IsDir()
+}
+
+func TempKvPath(loc string, name string) (string, error) {
+	if !TempKvExists(loc, name) {
+		dir, _ := createDir(path.Join("_store_", loc))
+		kvPath := path.Join(dir, name)
+		_, err := os.Create(kvPath)
+		if err != nil {
+			return "", err
+		}
+		return kvPath, nil
+	}
+	return path.Join("_store_", loc, name), nil
 }
 
 func BaseConfigDir() string {

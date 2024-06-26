@@ -2,9 +2,11 @@ package engine
 
 import (
 	"Scout.go/internal"
+	"Scout.go/log"
 	"Scout.go/models"
 	"Scout.go/reg"
 	"Scout.go/util"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -12,8 +14,12 @@ func Indexes() models.IndexNames {
 	start := time.Now()
 
 	var names models.IndexNames
-	var configs []internal.IdxConfig
-	internal.DB.Find(&configs)
+	var configs []internal.IndexConfig
+	err := internal.DB.Find(&configs, "", 0, internal.IndexConfigStore)
+	if err != nil {
+		log.L.Error("indexes error - ", zap.Error(err))
+		return models.IndexNames{}
+	}
 
 	names.Indexes = make([]string, len(configs))
 	for i := range configs {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"Scout.go/internal"
 	"Scout.go/routes"
 	"context"
 	"errors"
@@ -35,7 +36,7 @@ func StartServer(log *zap.Logger) {
 	router.GET("/stats", routes.GetIndexStats)
 	router.PUT("/config", routes.PutConfig)
 	router.POST("/binlog", routes.PostDbConfigPerIndex)
-	router.GET("/binlog", routes.GetDbConfigPerIndex)
+	router.GET("/binlog/:index", routes.GetDbConfigPerIndex)
 	// route setup - end
 
 	srv := &http.Server{
@@ -65,7 +66,12 @@ func StartServer(log *zap.Logger) {
 	<-ctx.Done()
 
 	stop()
-
+	defer func() {
+		err := internal.DB.Close()
+		if err != nil {
+			log.Fatal("failed to close temp disk", zap.Error(err))
+		}
+	}()
 	log.Info("shutting down gracefully, press Ctrl+C again to force")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

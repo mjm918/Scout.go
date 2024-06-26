@@ -24,7 +24,7 @@ func main() {
 	}
 	util.BaseLogDir()
 	util.BaseConfigDir()
-	internal.ConnectDatabase()
+	internal.NewDiskStorage()
 	internal.BootIndexesToRegistry()
 
 	server.StartServer(logger.L)

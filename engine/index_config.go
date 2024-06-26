@@ -8,6 +8,7 @@ import (
 	"Scout.go/storage"
 	"Scout.go/util"
 	"github.com/goccy/go-json"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -29,9 +30,12 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfig, error) {
 	}
 
 	// Check if previously inserted config
-	var prevRec internal.IdxConfig
+	var prevRec internal.IndexConfig
 	var needReindex bool = false
-	internal.DB.First(&prevRec).Where("name = ?", payload.Index)
+	err = internal.DB.Find(&prevRec, payload.Index, 1, internal.IndexConfigStore)
+	if err != nil {
+		log.L.Error("error getting index config", zap.Error(err))
+	}
 	if prevRec.Name != "" {
 		// Compare with new searchable
 		var tmpRec models.IndexMapConfig
@@ -44,16 +48,16 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfig, error) {
 		needReindex = true
 	}
 
-	rec := internal.IdxConfig{
+	rec := internal.IndexConfig{
 		Name:       payload.Index,
 		Searchable: string(searchable),
 	}
 
 	if needReindex {
 		updateIdxErr := UpdateIndex(&payload)
-		affected := internal.DB.Model(&rec).Where("name = ?", payload.Index).Updates(&rec).RowsAffected
-		if affected == 0 {
-			affected = internal.DB.Create(&rec).RowsAffected
+		err = internal.DB.PutMap(rec.Name, &rec, internal.IndexConfigStore)
+		if err != nil {
+			log.L.Error("error putting index config", zap.Error(err))
 		}
 		status.Status = updateIdxErr == nil
 		status.Message = "reindexing based on new fields"

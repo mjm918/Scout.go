@@ -2,8 +2,10 @@ package routes
 
 import (
 	"Scout.go/internal"
+	"Scout.go/util"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"time"
 )
 
 func PostDbConfigPerIndex(c *gin.Context) {
@@ -21,18 +23,24 @@ func PostDbConfigPerIndex(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "required field(s) missing [host, username, password, database, index, watch_table]\n" + v.Error()})
 		return
 	}
-	/*var tmpRec []internal.DbConfig
-	internal.DB.Where("`index` = ?", reqBody.Index).Find(&tmpRec)
-	*/
-	if internal.DB.Where("`index` = ?", reqBody.Index).Assign(&reqBody).FirstOrCreate(&internal.DbConfig{}).Error == nil {
-		c.JSON(http.StatusCreated, gin.H{"message": "Database config was saved successfully"})
-	} else {
-		c.JSON(http.StatusCreated, gin.H{"message": "Database config was not saved successfully"})
+
+	start := time.Now()
+
+	err := internal.DB.PutMap(reqBody.Index, reqBody, internal.DbConfigStore)
+	if err != nil {
+		c.JSON(http.StatusCreated, gin.H{"message": "error saving config", "execution": util.Elapsed(start)})
+		return
 	}
+	c.JSON(http.StatusCreated, gin.H{"message": "database config saved", "execution": util.Elapsed(start)})
 }
 
 func GetDbConfigPerIndex(c *gin.Context) {
-	var result []internal.DbConfig
-	internal.DB.Find(&result)
-	c.JSON(http.StatusOK, gin.H{"config": result})
+	var result internal.DbConfig
+	start := time.Now()
+	err := internal.DB.GetMap(c.Param("index"), &result, internal.DbConfigStore)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": err.Error(), "execution": util.Elapsed(start), "index": c.Param("index")})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"config": result, "execution": util.Elapsed(start), "index": c.Param("index")})
 }
