@@ -28,7 +28,8 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfigResponse, 
 	var needReindex bool = false
 	err := internal.DB.Find(&prevRec, payload.Index, 1, internal.IndexConfigStore)
 	if err != nil {
-		log.L.Error("error getting index config", zap.Error(err))
+		log.AppLog.E(payload.Index, "error getting index config", zap.Error(err))
+		return models.IndexConfigResponse{}, err
 	}
 	if prevRec.Index != "" {
 		// Compare with new searchable
@@ -43,7 +44,7 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfigResponse, 
 		updateIdxErr := UpdateIndex(&payload)
 		err = internal.DB.PutMap(payload.Index, &payload, internal.IndexConfigStore)
 		if err != nil {
-			log.L.Error("error putting index config", zap.Error(err))
+			log.AppLog.E(payload.Index, "error putting index config", zap.Error(err))
 		}
 		status.Status = updateIdxErr == nil
 		status.Message = "reindexing based on new fields"
@@ -58,10 +59,10 @@ func NewIndexConfig(payload models.IndexMapConfig) (models.IndexConfigResponse, 
 func UpdateIndex(mapConfig *models.IndexMapConfig) error {
 	_, err := reg.IndexByName(mapConfig.Index)
 	if err != nil {
-		log.L.Error(err.Error())
+		log.AppLog.E(mapConfig.Index, err.Error())
 		index, err := storage.NewIndex(mapConfig)
 		if err != nil {
-			log.L.Error(err.Error())
+			log.AppLog.E(mapConfig.Index, err.Error())
 			return err
 		}
 		//ReIndex(index)
@@ -77,23 +78,23 @@ func UpdateIndex(mapConfig *models.IndexMapConfig) error {
 	searchRequest := bleve.NewSearchRequest(query)
 	oldDocs, err := index.Search(searchRequest)
 	if err != nil {
-		log.L.Error(fmt.Sprintf("error searching bleve index: %s", err.Error()))
+		log.AppLog.Error(fmt.Sprintf("error searching bleve index: %s", err.Error()))
 	} else {
 		tmpKv := internal.NewTempDisk(index.Name())
 		for _, hit := range oldDocs.Hits {
 			doc, err := index.Get(hit.ID)
 			if err != nil {
-				log.L.Error(fmt.Sprintf("error fetching document %s: %v", hit.ID, err))
+				log.AppLog.Error(fmt.Sprintf("error fetching document %s: %v", hit.ID, err))
 				continue
 			}
 			marshalled, err := json.Marshal(doc)
 			if err != nil {
-				log.L.Error(fmt.Sprintf("error marshalling document %s: %v", hit.ID, err))
+				log.AppLog.Error(fmt.Sprintf("error marshalling document %s: %v", hit.ID, err))
 				continue
 			}
 			putErr := tmpKv.Put(index.Name()+":"+string(hit.ID), marshalled)
 			if putErr != nil {
-				log.L.Error(fmt.Sprintf("error putting document %s %s: %v", index.Name(), hit.ID, putErr))
+				log.AppLog.Error(fmt.Sprintf("error putting document %s %s: %v", index.Name(), hit.ID, putErr))
 			}
 		}
 

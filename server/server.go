@@ -1,7 +1,9 @@
 package server
 
 import (
+	"Scout.go/engine"
 	"Scout.go/internal"
+	"Scout.go/reg"
 	"Scout.go/routes"
 	"context"
 	"errors"
@@ -28,6 +30,7 @@ func StartServer(log *zap.Logger) {
 	// middleware setup - start
 	router.Use(ginzap.Ginzap(log, time.RFC3339, true))
 	router.Use(ginzap.RecoveryWithZap(log, true))
+	router.Use(gin.Recovery())
 	// middleware setup - end
 
 	// route setup - start
@@ -37,6 +40,7 @@ func StartServer(log *zap.Logger) {
 	router.PUT("/config", routes.PutConfig)
 	router.POST("/binlog", routes.PostDbConfigPerIndex)
 	router.GET("/binlog/:index", routes.GetDbConfigPerIndex)
+	router.GET("/log/:index", routes.GetIndexLog)
 	// route setup - end
 
 	srv := &http.Server{
@@ -67,6 +71,19 @@ func StartServer(log *zap.Logger) {
 
 	stop()
 	defer func() {
+		var idx = engine.Indexes()
+		for _, indexName := range idx.Indexes {
+			index, err := reg.IndexByName(indexName)
+			if err != nil {
+				log.Fatal("failed to get index", zap.Error(err))
+			} else {
+				err := index.Close()
+				if err != nil {
+					log.Fatal("failed to close index", zap.Error(err))
+					return
+				}
+			}
+		}
 		err := internal.DB.Close()
 		if err != nil {
 			log.Fatal("failed to close temp disk", zap.Error(err))

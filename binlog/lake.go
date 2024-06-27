@@ -6,7 +6,9 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/replication"
 	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/exp/slices"
 	"math/rand"
+	"strings"
 )
 
 type ScoutMySqlEventHandler struct {
@@ -15,7 +17,7 @@ type ScoutMySqlEventHandler struct {
 }
 
 func (h *ScoutMySqlEventHandler) OnRow(e *canal.RowsEvent) error {
-	if e.Action == canal.UpdateAction || e.Action == canal.InsertAction {
+	if slices.Contains(strings.Split(h.maker.DbCnf.WatchTable, ","), e.Table.Name) {
 		id := rand.Int31()
 		h.maker.EventChannel <- &CanalEvent{
 			Status: "start",

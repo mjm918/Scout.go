@@ -3,6 +3,7 @@ package errors
 import "errors"
 
 var (
+	ErrRegNotFound      = errors.New("register not found")
 	ErrNotFound         = errors.New("not found")
 	ErrTimeout          = errors.New("timeout")
 	ErrNoUpdate         = errors.New("no update")

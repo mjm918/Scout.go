@@ -5,7 +5,7 @@ import (
 	"Scout.go/errors"
 	"Scout.go/event"
 	"Scout.go/internal"
-	logger "Scout.go/log"
+	log2 "Scout.go/log"
 	"Scout.go/models"
 	"Scout.go/reg"
 	"Scout.go/server"
@@ -54,5 +54,5 @@ func main() {
 		go wt.ListenForNewHost(ps)
 	}
 
-	server.StartServer(logger.L)
+	server.StartServer(log2.CreateLogger())
 }

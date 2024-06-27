@@ -2,6 +2,7 @@ package storage
 
 import (
 	"Scout.go/errors"
+	"Scout.go/internal"
 	"Scout.go/log"
 	scoutmap "Scout.go/mapping"
 	"Scout.go/models"
@@ -13,12 +14,13 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
 type Index struct {
 	indexMapping *mapping.IndexMappingImpl
-	logger       *zap.Logger
+	logger       *log.BaseLog
 
 	index     bleve.Index
 	indexPath string
@@ -30,14 +32,14 @@ func NewIndex(config *models.IndexMapConfig) (*Index, error) {
 	if err != nil {
 		return nil, err
 	}
-	idx, err := createIndex(dir, mapper, log.L)
+	idx, err := createIndex(dir, mapper, log.AppLog)
 	if err != nil {
 		return nil, err
 	}
 	return idx, nil
 }
 
-func createIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *zap.Logger) (*Index, error) {
+func createIndex(dir string, indexMapping *mapping.IndexMappingImpl, logger *log.BaseLog) (*Index, error) {
 	var index bleve.Index
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -226,4 +228,56 @@ func (i *Index) Name() string {
 
 func (i *Index) Path() string {
 	return i.indexPath
+}
+
+func (i *Index) PrepareAndIndex(data []map[string]interface{}) error {
+	var indexMapConfig models.IndexMapConfig
+	err := internal.DB.Find(&indexMapConfig, i.Name(), 1, internal.IndexConfigStore)
+	if err != nil {
+		log.AppLog.E(i.Name(), "error getting index config", zap.Error(err))
+		return err
+	}
+	if len(data) == 0 {
+		return errors.ErrNoDoc
+	}
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	/**
+	data = [{fields...}]
+	norm = [{id:string,fields:{fields...}}]
+	*/
+	norm := make([]map[string]interface{}, 0)
+	for _, d := range data {
+		wg.Add(1)
+		go func(t map[string]interface{}, w *sync.WaitGroup, m *sync.Mutex, r *[]map[string]interface{}, c *models.IndexMapConfig) {
+			defer w.Done()
+			m.Lock()
+			v, ok := t[c.UniqueId]
+			if ok {
+				vs, er := util.ToString(v)
+				if er != nil {
+					log.AppLog.E(c.Index, "unique id expected as string", zap.Any("id", v))
+					return
+				}
+				n := map[string]interface{}{
+					"id":     vs,
+					"fields": t,
+				}
+				*r = append(*r, n)
+			} else {
+				log.AppLog.E(c.Index, "unique ID not found in index mapping", zap.String("id", c.UniqueId), zap.Any("data", t))
+			}
+			m.Unlock()
+		}(d, &wg, &mu, &norm, &indexMapConfig)
+	}
+	wg.Wait()
+
+	count, err := i.BulkIndex(util.MakeUniqueById(norm))
+	if err != nil {
+		return err
+	}
+	log.AppLog.I(i.Name(), "bulk indexing completed...", zap.Int("count", count))
+
+	return nil
 }

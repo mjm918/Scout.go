@@ -30,6 +30,16 @@ func (a *IndexSearchable) Validate() error {
 type IndexMapConfig struct {
 	Index      string            `json:"index"`
 	Searchable []IndexSearchable `json:"searchable"`
+	UniqueId   string            `json:"unique_id"`
+}
+
+func (x *IndexMapConfig) Validate() error {
+	switch x.UniqueId {
+	case "":
+		return errors.New("invalid unique field")
+	default:
+		return nil
+	}
 }
 
 type IndexConfigResponse struct {

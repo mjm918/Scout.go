@@ -1,13 +1,15 @@
 package internal
 
 import (
-	"Scout.go/log"
 	"Scout.go/util"
+	"encoding/binary"
 	"fmt"
 	"github.com/goccy/go-json"
+	"github.com/pingcap/log"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,49 +26,56 @@ type TempDisk struct {
 }
 
 var DB *TempDisk
+var LogDb = NewLogDiskStorage()
+
+func NewLogDiskStorage() *TempDisk {
+	const diskPath = "internal"
+	const diskStore = "app.scout"
+	return openTempDisk(diskPath, diskStore)
+}
 
 func NewDiskStorage() {
-	DB = openTempDisk()
+	const diskPath = "internal"
+	const diskStore = "storage.scout"
+
+	DB = openTempDisk(diskPath, diskStore)
 	err := DB.store.Update(func(tx *bbolt.Tx) error {
 		if !tx.Writable() {
-			log.L.Error("tx is not writable")
+			log.Error("tx is not writable")
 			return nil
 		}
 		_, err := tx.CreateBucketIfNotExists([]byte(defaultBucket))
 		if err != nil {
-			log.L.Error("create bucket error ", zap.String("bucket", defaultBucket), zap.Error(err))
+			log.Error("create bucket error ", zap.String("bucket", defaultBucket), zap.Error(err))
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte(IndexConfigStore))
 		if err != nil {
-			log.L.Error("create bucket error ", zap.String("bucket", IndexConfigStore), zap.Error(err))
+			log.Error("create bucket error ", zap.String("bucket", IndexConfigStore), zap.Error(err))
 			return err
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte(DbConfigStore))
 		if err != nil {
-			log.L.Error("create bucket error ", zap.String("bucket", DbConfigStore), zap.Error(err))
+			log.Error("create bucket error ", zap.String("bucket", DbConfigStore), zap.Error(err))
 			return err
 		}
 		return nil
 	})
 	if err != nil {
-		log.L.Error("error creating temp disk storage", zap.Error(err))
+		log.Error("error creating temp disk storage", zap.Error(err))
 		return
 	}
 }
 
-func openTempDisk() *TempDisk {
-	const diskPath = "internal"
-	const diskStore = "storage.scout"
-
+func openTempDisk(diskPath, diskStore string) *TempDisk {
 	dir, err := util.TempKvPath(diskPath, diskStore)
 	if err != nil {
-		log.L.Error(err.Error(), zap.String("path", dir), zap.String("NewTempDisk", "Path"))
+		log.Error(err.Error(), zap.String("path", dir), zap.String("NewTempDisk", "Path"))
 	}
 
 	d, err := bbolt.Open(dir, 0600, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		log.L.Error(err.Error(), zap.String("path", dir), zap.String("NewTempDisk", "Open"))
+		log.Error(err.Error(), zap.String("path", dir), zap.String("NewTempDisk", "Open"))
 	}
 	return &TempDisk{store: d, dir: dir}
 }
@@ -107,6 +116,14 @@ func (td *TempDisk) Get(key, bucket string) ([]byte, error) {
 		return nil
 	})
 	return value, err
+}
+
+func (td *TempDisk) LogIt(value, indexOrDb string) {
+	err := td.Put(strconv.FormatInt(time.Now().Unix(), 10), value, indexOrDb)
+	if err != nil {
+		fmt.Printf("error dumping log %v", err.Error())
+		log.Error("error dumping log", zap.Error(err))
+	}
 }
 
 func (td *TempDisk) Put(key, value, bucket string) error {
@@ -266,6 +283,36 @@ func (td *TempDisk) GetMap(key string, result interface{}, bucket string) error 
 	return json.Unmarshal(value, result)
 }
 
+func (td *TempDisk) GetLogs(bucket string) ([]map[string]interface{}, error) {
+	result := make([]map[string]interface{}, 0)
+	err := td.store.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(bucket))
+		if b == nil {
+			return fmt.Errorf("bucket %s not found", bucket)
+		}
+		count := 0
+		c := b.Cursor()
+		for k, vBytes := c.Last(); k != nil; k, vBytes = c.Prev() {
+			unixTimestamp := int64(binary.BigEndian.Uint64(k))
+			t := time.Unix(unixTimestamp, 0)
+			formattedTime := t.Format(time.RFC3339)
+			result = append(result, map[string]interface{}{
+				string(k): string(vBytes),
+				"at":      formattedTime,
+			})
+			if count == 150 {
+				break
+			}
+			count = count + 1
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (td *TempDisk) Find(result interface{}, where string, limit int, bucket string) error {
 	if bucket == "" {
 		bucket = defaultBucket
@@ -313,6 +360,10 @@ func (td *TempDisk) Find(result interface{}, where string, limit int, bucket str
 					return err
 				}
 				v.Set(reflect.Append(v, newElem))
+			case reflect.Struct:
+				if err := json.Unmarshal(vBytes, v.Addr().Interface()); err != nil {
+					return err
+				}
 			default:
 				return fmt.Errorf("unsupported type: %s", v.Kind())
 			}

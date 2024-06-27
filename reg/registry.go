@@ -23,5 +23,5 @@ func IndexByName(name string) (*storage.Index, error) {
 	if exists {
 		return index, nil
 	}
-	return nil, yrr.ErrNotFound
+	return nil, yrr.ErrRegNotFound
 }

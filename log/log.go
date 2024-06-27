@@ -1,7 +1,9 @@
 package log
 
 import (
+	"Scout.go/internal"
 	"Scout.go/util"
+	"fmt"
 	accesslog "github.com/mash/go-accesslog"
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
@@ -10,7 +12,49 @@ import (
 	"strconv"
 )
 
-var L = NewLogger("DEBUG", util.LogPath(), 10, 10, 1, false)
+var AppLog = New()
+
+type BaseLog struct {
+	zap.Logger
+}
+
+func New() *BaseLog {
+	return &BaseLog{
+		*CreateLogger(),
+	}
+}
+
+func (l *BaseLog) E(indexOrDb, msg string, args ...zapcore.Field) {
+	l.Error(msg, args...)
+	go func() {
+		internal.LogDb.LogIt(fmt.Sprintf("Error: %s - %v", msg, args), indexOrDb)
+	}()
+}
+
+func (l *BaseLog) F(indexOrDb, msg string, args ...zapcore.Field) {
+	l.Fatal(msg, args...)
+	go func() {
+		internal.LogDb.LogIt(fmt.Sprintf("Fatal: %s - %v", msg, args), indexOrDb)
+	}()
+}
+
+func (l *BaseLog) W(indexOrDb, msg string, args ...zapcore.Field) {
+	l.Warn(msg, args...)
+	go func() {
+		internal.LogDb.LogIt(fmt.Sprintf("Warning: %s - %v", msg, args), indexOrDb)
+	}()
+}
+
+func (l *BaseLog) I(indexOrDb, msg string, args ...zapcore.Field) {
+	l.Info(msg, args...)
+	go func() {
+		internal.LogDb.LogIt(fmt.Sprintf("Info: %s - %v", msg, args), indexOrDb)
+	}()
+}
+
+func CreateLogger() *zap.Logger {
+	return NewLogger("DEBUG", util.LogPath(), 10, 10, 1, false)
+}
 
 func NewLogger(logLevel string, logFilename string, logMaxSize int, logMaxBackups int, logMaxAge int, logCompress bool) *zap.Logger {
 	var ll zapcore.Level
@@ -66,8 +110,9 @@ func NewLogger(logLevel string, logFilename string, logMaxSize int, logMaxBackup
 			ll,
 		),
 		zap.AddCaller(),
-		//zap.AddStacktrace(ll),
+		zap.AddStacktrace(zap.DPanicLevel),
 	).Named(os.Getenv("APPNAME"))
+
 	return logger
 }
 
@@ -107,7 +152,7 @@ func (l HTTPLogger) Log(record accesslog.LogRecord) {
 	)
 }
 
-var CL = NewCanalLogger()
+var CanalLog = NewCanalLogger()
 
 type CanalLogger struct {
 	Logger *zap.Logger

@@ -3,8 +3,9 @@ package binlog
 import (
 	"Scout.go/log"
 	"Scout.go/models"
+	"Scout.go/reg"
+	"Scout.go/storage"
 	"Scout.go/util"
-	"fmt"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/schema"
 	"github.com/go-resty/resty/v2"
@@ -16,11 +17,12 @@ import (
 type Maker struct {
 	EventChannel chan *CanalEvent
 	Done         chan struct{}
+	DbCnf        *models.DbConfig
 
 	changes          []*canal.RowsEvent
-	cnf              *models.DbConfig
 	debouncedChannel chan *CanalEvent
 	changesMu        sync.Mutex
+	index            *storage.Index
 }
 
 type CanalEvent struct {
@@ -29,16 +31,19 @@ type CanalEvent struct {
 	Event  *canal.RowsEvent
 }
 
-var start time.Time
-
 func NewMaker(cnf *models.DbConfig) *Maker {
+	searchIndex, err := reg.IndexByName(cnf.Index)
+	if err != nil {
+		log.AppLog.E(cnf.Index, "watching data changes but no index found", zap.Error(err))
+	}
 	i := Maker{
 		changes:          make([]*canal.RowsEvent, 0),
-		cnf:              cnf,
+		DbCnf:            cnf,
 		EventChannel:     nil,
 		Done:             nil,
 		debouncedChannel: nil,
 		changesMu:        sync.Mutex{},
+		index:            searchIndex,
 	}
 	go i.Start()
 	return &i
@@ -64,49 +69,60 @@ OUTER:
 				break
 			}
 			if event.Status == "start" || event.Status == "stop" {
-				fmt.Printf("[%s] Received debounced event %s with ID %d\n", time.Since(start), event.Status, event.ID)
 				b.makeData()
 			}
 		}
 	}
-	fmt.Printf("[%s] Exited debounce loop...\n", time.Since(start))
 	time.Sleep(100 * time.Millisecond)
-	fmt.Printf("[%s] Done.\n", time.Since(start))
 }
 
 func (b *Maker) makeData() {
-	log.L.Info("makeData()", zap.Int("count", len(b.changes)), zap.String("db", b.cnf.Database))
-
 	b.changesMu.Lock()
 	if b.changes != nil && len(b.changes) > 0 {
 		client := resty.New().R()
-		if b.cnf.MakerHeaders != nil && len(b.cnf.MakerHeaders) > 0 {
-			for _, header := range b.cnf.MakerHeaders {
+		if b.DbCnf.MakerHeaders != nil && len(b.DbCnf.MakerHeaders) > 0 {
+			for _, header := range b.DbCnf.MakerHeaders {
 				client.SetHeader(header.HeaderKey, header.HeaderVal)
 			}
 		}
-		if b.cnf.MakerHook != "" {
-			dataToPost := util.Map(b.changes, func(e *canal.RowsEvent) []map[string]interface{} {
-				v := make([]map[string]interface{}, 0)
-				columns := util.Map(e.Table.Columns, func(t schema.TableColumn) string {
-					return t.Name
-				})
-				for _, r := range e.Rows {
-					row := make(map[string]interface{})
-					for i, col := range r {
-						row[columns[i]] = col
-					}
-					v = append(v, row)
-				}
-				return v
+		changes := util.Map(b.changes, func(e *canal.RowsEvent) []map[string]interface{} {
+			v := make([]map[string]interface{}, 0)
+			columns := util.Map(e.Table.Columns, func(t schema.TableColumn) string {
+				return t.Name
 			})
-			client.SetBody(dataToPost)
-			log.L.Info("data to post", zap.Any("data", dataToPost))
-			response, err := client.Post(b.cnf.MakerHook)
-			if err != nil {
-				log.L.Error("maker hook error", zap.Error(err))
+			for _, r := range e.Rows {
+				row := make(map[string]interface{})
+				for i, col := range r {
+					row[columns[i]] = col
+				}
+				v = append(v, row)
 			}
-			log.L.Info("maker hook response", zap.Any("response", response))
+			return v
+		})
+		dataToPost := make([]map[string]interface{}, 0)
+		for _, rows := range changes {
+			for _, row := range rows {
+				dataToPost = append(dataToPost, row)
+			}
+		}
+
+		if b.DbCnf.MakerHook != "" {
+			client.SetBody(dataToPost)
+			log.AppLog.Info("data to post", zap.Any("data", dataToPost))
+			response, err := client.Post(b.DbCnf.MakerHook)
+			if err != nil {
+				log.AppLog.E(b.DbCnf.Index, "maker hook error", zap.Error(err))
+			}
+			log.AppLog.Info("maker hook response", zap.Any("response", response))
+		} else {
+			if b.index != nil {
+				err := b.index.PrepareAndIndex(dataToPost)
+				if err != nil {
+					log.AppLog.E(b.DbCnf.Index, "prepare index error", zap.Error(err))
+				}
+			} else {
+				log.AppLog.E(b.DbCnf.Index, "prepare data to index (nil)")
+			}
 		}
 		b.changes = nil
 	}
@@ -132,7 +148,6 @@ func (b *Maker) debounce(min time.Duration, max time.Duration, input chan *Canal
 					return
 				}
 				if buffer.Event != nil {
-					fmt.Printf("[%s] Received raw event %s with ID %d\n", time.Since(start), buffer.Status, buffer.ID)
 					b.changesMu.Lock()
 					b.changes = append(b.changes, buffer.Event)
 					b.changesMu.Unlock()
@@ -142,11 +157,9 @@ func (b *Maker) debounce(min time.Duration, max time.Duration, input chan *Canal
 					maxTimer = time.After(max)
 				}
 			case <-minTimer:
-				fmt.Printf("[%s] Flush Min timer is up!\n", time.Since(start))
 				minTimer, maxTimer = nil, nil
 				output <- buffer
 			case <-maxTimer:
-				fmt.Printf("[%s] Flush Max timer is up!\n", time.Since(start))
 				minTimer, maxTimer = nil, nil
 				output <- buffer
 			}

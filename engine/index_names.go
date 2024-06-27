@@ -17,7 +17,7 @@ func Indexes() models.IndexNames {
 	var configs []models.IndexMapConfig
 	err := internal.DB.Find(&configs, "", 0, internal.IndexConfigStore)
 	if err != nil {
-		log.L.Error("indexes error - ", zap.Error(err))
+		log.AppLog.Error("indexes error - ", zap.Error(err))
 		return models.IndexNames{}
 	}
 
