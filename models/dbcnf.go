@@ -5,16 +5,21 @@ import (
 	"github.com/goccy/go-json"
 )
 
+type MakerHeader struct {
+	HeaderKey string `json:"header_key"`
+	HeaderVal string `json:"header_val"`
+}
+
 type DbConfig struct {
-	Host         string `json:"host"`
-	Port         uint   `json:"port"`
-	User         string `json:"user"`
-	Password     string `json:"password"`
-	Database     string `json:"database"`
-	Index        string `json:"index"`
-	WatchTable   string `json:"watch_table"`
-	MakerHook    string `json:"maker_hook"`
-	MakerHeaders string `json:"maker_headers"`
+	Host         string        `json:"host"`
+	Port         uint          `json:"port"`
+	User         string        `json:"user"`
+	Password     string        `json:"password"`
+	Database     string        `json:"database"`
+	Index        string        `json:"index"`
+	WatchTable   string        `json:"watch_table"`
+	MakerHook    string        `json:"maker_hook"`
+	MakerHeaders []MakerHeader `json:"maker_headers"`
 }
 
 func (a *DbConfig) Validate() error {

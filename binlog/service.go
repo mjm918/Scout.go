@@ -5,7 +5,6 @@ import (
 	"Scout.go/internal"
 	"Scout.go/util"
 	"database/sql"
-	"fmt"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"golang.org/x/exp/slices"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	//"Scout.go/internal"
 	"Scout.go/log"
 	"Scout.go/models"
 	"go.uber.org/zap"
@@ -25,14 +23,14 @@ type Watchman struct {
 }
 
 type Service struct {
-	Warehouse map[string]Watchman
+	Warehouse map[string]*Watchman
 
 	servers []string
 }
 
 func WatchDataChanges() *Service {
 	return &Service{
-		Warehouse: make(map[string]Watchman),
+		Warehouse: make(map[string]*Watchman),
 		servers:   make([]string, 0),
 	}
 }
@@ -95,21 +93,21 @@ func getMasterStatus(dbCfg *models.DbConfig) (string, uint32, error) {
 }
 
 // GetWatchman initializes and returns a Canal instance for the specified database configuration.
-func (a *Service) GetWatchman(dbCfg *models.DbConfig) (Watchman, error) {
+func (a *Service) GetWatchman(dbCfg *models.DbConfig) (*Watchman, error) {
 	if dbCfg.WatchTable == "" {
-		log.CL.Error("GetWatchman", zap.Error(errors.ErrNoWatchTable))
-		return Watchman{}, nil
+		log.L.Error("GetWatchman", zap.Error(errors.ErrNoWatchTable))
+		return nil, nil
 	}
 	if dbCfg.Database == "" {
-		log.CL.Error("GetWatchman", zap.Error(errors.ErrNoWatchDb))
-		return Watchman{}, nil
+		log.L.Error("GetWatchman", zap.Error(errors.ErrNoWatchDb))
+		return nil, nil
 	}
 
 	if !slices.Contains(a.servers, dbCfg.Host) {
 		tables := util.Map(strings.Split(dbCfg.WatchTable, ","), func(t string) string {
-			return dbCfg.Database + "." + t
+			return strings.Trim(dbCfg.Database, " ") + "." + strings.Trim(t, " ")
 		})
-
+		//fmt.Printf("watching following tables %v\n", []string{fmt.Sprintf("^(%s)$", strings.Join(tables, "|"))})
 		cfg := canal.NewDefaultConfig()
 		cfg.User = dbCfg.User
 		cfg.Password = dbCfg.Password
@@ -117,7 +115,7 @@ func (a *Service) GetWatchman(dbCfg *models.DbConfig) (Watchman, error) {
 		cfg.Addr = dbCfg.Host + ":" + strconv.Itoa(int(dbCfg.SafePort()))
 		cfg.Charset = "utf8"
 		cfg.Flavor = "mysql"
-		cfg.IncludeTableRegex = []string{fmt.Sprintf("^%s$", strings.Join(tables, "|"))}
+		cfg.IncludeTableRegex = tables
 		cfg.Dump.TableDB = dbCfg.Database
 		cfg.Dump.Tables = strings.Split(dbCfg.WatchTable, ",")
 		cfg.Dump.ExecutionPath = ""
@@ -127,36 +125,37 @@ func (a *Service) GetWatchman(dbCfg *models.DbConfig) (Watchman, error) {
 
 		c, err := canal.NewCanal(cfg)
 		if err != nil {
-			log.CL.Error("error creating canal instance", zap.Error(err), zap.String("host", dbCfg.Host))
-			return Watchman{}, nil
+			log.L.Error("error creating canal instance", zap.Error(err), zap.String("host", dbCfg.Host))
+			return nil, nil
 		}
 		w := Watchman{
-			Canal:   c,
-			Handler: ScoutMySqlEventHandler{},
+			Canal: c,
+			Handler: ScoutMySqlEventHandler{
+				changes: make([]canal.RowsEvent, 0),
+				cnf:     dbCfg,
+			},
 		}
 		c.SetEventHandler(&w.Handler)
-		c.Run()
 
-		/*c.GetMasterPos()
+		log.L.Info("starting watchman", zap.String("host", dbCfg.Host))
+		go c.Run()
 
 		file, pos, err := getMasterStatus(dbCfg)
 		if err != nil {
-			log.CL.Fatal("error getting master status", zap.Error(err), zap.String("host", dbCfg.Host))
-			return Watchman{}, nil
+			log.L.Fatal("error getting master status", zap.Error(err), zap.String("host", dbCfg.Host))
+			return nil, nil
 		}
-
 		startPos := mysql.Position{Name: file, Pos: pos}
+		go a.monitorBinlogChanges(c, dbCfg, startPos, cfg)
 
-		go a.monitorBinlogChanges(c, dbCfg, startPos, cfg)*/
-
-		return w, nil
+		return &w, nil
 	}
-	return Watchman{}, nil
+	return nil, nil
 }
 
 // monitorBinlogChanges monitors changes in the binlog file and position, and restarts the Canal instance if necessary.
 func (a *Service) monitorBinlogChanges(c *canal.Canal, dbCfg *models.DbConfig, startPos mysql.Position, cfg *canal.Config) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {

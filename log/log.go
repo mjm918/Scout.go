@@ -68,7 +68,6 @@ func NewLogger(logLevel string, logFilename string, logMaxSize int, logMaxBackup
 		zap.AddCaller(),
 		//zap.AddStacktrace(ll),
 	).Named(os.Getenv("APPNAME"))
-
 	return logger
 }
 
