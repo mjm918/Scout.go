@@ -19,7 +19,7 @@ import (
 
 type Watchman struct {
 	Canal   *canal.Canal
-	Handler ScoutMySqlEventHandler
+	Handler *ScoutMySqlEventHandler
 }
 
 type Service struct {
@@ -63,7 +63,8 @@ func (a *Service) ListenForNewHost(ch chan interface{}) {
 			if a.Warehouse[v.Index].Canal != nil {
 				log.L.Warn("existing watchman found. closing connection and running GC", zap.String("index", v.Index))
 				a.Warehouse[v.Index].Canal.Close()
-				time.Sleep(10 * time.Second)
+				a.Warehouse[v.Index].Handler.Stop()
+				time.Sleep(5 * time.Second)
 			}
 			a.AssignNewWatchman(v)
 		default:
@@ -129,13 +130,10 @@ func (a *Service) GetWatchman(dbCfg *models.DbConfig) (*Watchman, error) {
 			return nil, nil
 		}
 		w := Watchman{
-			Canal: c,
-			Handler: ScoutMySqlEventHandler{
-				changes: make([]canal.RowsEvent, 0),
-				cnf:     dbCfg,
-			},
+			Canal:   c,
+			Handler: NewScoutMySqlEventHandler(dbCfg),
 		}
-		c.SetEventHandler(&w.Handler)
+		c.SetEventHandler(w.Handler)
 
 		log.L.Info("starting watchman", zap.String("host", dbCfg.Host))
 		go c.Run()
@@ -176,7 +174,7 @@ func (a *Service) monitorBinlogChanges(c *canal.Canal, dbCfg *models.DbConfig, s
 				continue
 			}
 
-			c.SetEventHandler(&ScoutMySqlEventHandler{})
+			c.SetEventHandler(NewScoutMySqlEventHandler(dbCfg))
 			go c.RunFrom(startPos)
 		}
 	}
