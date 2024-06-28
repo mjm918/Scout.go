@@ -1,7 +1,8 @@
 package binlog
 
 import (
-	"Scout.go/models"
+	"Scout.go/internal"
+	"fmt"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/replication"
@@ -24,6 +25,7 @@ func (h *ScoutMySqlEventHandler) OnRow(e *canal.RowsEvent) error {
 			ID:     id,
 			Event:  e,
 		}
+		go internal.DB.LogIt(fmt.Sprintf("Binlog: Table - %s Count - %d", e.Table.Name, len(e.Rows)), h.maker.DbCnf.Index)
 	}
 	return nil
 }
@@ -32,8 +34,8 @@ func (h *ScoutMySqlEventHandler) OnPosSynced(header *replication.EventHeader, po
 	return nil
 }
 
-func NewScoutMySqlEventHandler(cnf *models.DbConfig) *ScoutMySqlEventHandler {
-	m := NewMaker(cnf)
+func NewScoutMySqlEventHandler(m *Maker) *ScoutMySqlEventHandler {
+	go m.Start()
 	return &ScoutMySqlEventHandler{
 		maker: m,
 	}

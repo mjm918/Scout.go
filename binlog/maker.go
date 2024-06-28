@@ -1,23 +1,28 @@
 package binlog
 
 import (
+	"Scout.go/internal"
 	"Scout.go/log"
 	"Scout.go/models"
 	"Scout.go/reg"
 	"Scout.go/storage"
 	"Scout.go/util"
+	"fmt"
 	"github.com/go-mysql-org/go-mysql/canal"
 	"github.com/go-mysql-org/go-mysql/schema"
 	"github.com/go-resty/resty/v2"
 	"go.uber.org/zap"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type Maker struct {
-	EventChannel chan *CanalEvent
-	Done         chan struct{}
-	DbCnf        *models.DbConfig
+	MakerInterface
 
 	changes          []*canal.RowsEvent
 	debouncedChannel chan *CanalEvent
@@ -38,15 +43,50 @@ func NewMaker(cnf *models.DbConfig) *Maker {
 	}
 	i := Maker{
 		changes:          make([]*canal.RowsEvent, 0),
-		DbCnf:            cnf,
-		EventChannel:     nil,
-		Done:             nil,
 		debouncedChannel: nil,
 		changesMu:        sync.Mutex{},
 		index:            searchIndex,
 	}
-	go i.Start()
+	i.DbCnf = cnf
+	i.EventChannel = nil
+	i.Done = nil
+
 	return &i
+}
+
+func (b *Maker) DoFirstTimeIndex() {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local", b.DbCnf.User, b.DbCnf.Password, b.DbCnf.Host, b.DbCnf.SafePort(), b.DbCnf.Database)
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.AppLog.E(b.DbCnf.Index, "failed to connect to database", zap.Error(err))
+		return
+	}
+
+	const batchSize = 1000
+
+	tables := strings.Split(b.DbCnf.WatchTable, ",")
+	for _, table := range tables {
+		if !b.isFirstTimeFetchNeeded(table) {
+			log.AppLog.I(b.DbCnf.Index, "isFirstTimeFetchNeeded: skipping ... ", zap.String("table", table))
+			continue
+		}
+		var totalRecords int
+		db.Table(table).Select("COUNT(*) AS totalCount").Scan(&totalRecords)
+		if totalRecords > 0 {
+			numBatches := (totalRecords + batchSize - 1) / batchSize
+			for batch := 0; batch < numBatches; batch++ {
+				offset := batch * batchSize
+
+				var dataToPost []map[string]interface{}
+				db.Table(table).Select("*").Offset(offset).Limit(batchSize).Scan(&dataToPost)
+
+				if len(dataToPost) > 0 {
+					b.followUserProtocol(dataToPost)
+				}
+			}
+			_ = internal.DB.Put(fmt.Sprintf("completed:%s:%s", b.DbCnf.Database, table), time.Now().Format(time.DateTime), "")
+		}
+	}
 }
 
 func (b *Maker) Start() {
@@ -69,22 +109,16 @@ OUTER:
 				break
 			}
 			if event.Status == "start" || event.Status == "stop" {
-				b.makeData()
+				b.processData()
 			}
 		}
 	}
 	time.Sleep(100 * time.Millisecond)
 }
 
-func (b *Maker) makeData() {
+func (b *Maker) processData() {
 	b.changesMu.Lock()
 	if b.changes != nil && len(b.changes) > 0 {
-		client := resty.New().R()
-		if b.DbCnf.MakerHeaders != nil && len(b.DbCnf.MakerHeaders) > 0 {
-			for _, header := range b.DbCnf.MakerHeaders {
-				client.SetHeader(header.HeaderKey, header.HeaderVal)
-			}
-		}
 		changes := util.Map(b.changes, func(e *canal.RowsEvent) []map[string]interface{} {
 			v := make([]map[string]interface{}, 0)
 			columns := util.Map(e.Table.Columns, func(t schema.TableColumn) string {
@@ -105,28 +139,37 @@ func (b *Maker) makeData() {
 				dataToPost = append(dataToPost, row)
 			}
 		}
-
-		if b.DbCnf.MakerHook != "" {
-			client.SetBody(dataToPost)
-			log.AppLog.Info("data to post", zap.Any("data", dataToPost))
-			response, err := client.Post(b.DbCnf.MakerHook)
-			if err != nil {
-				log.AppLog.E(b.DbCnf.Index, "maker hook error", zap.Error(err))
-			}
-			log.AppLog.Info("maker hook response", zap.Any("response", response))
-		} else {
-			if b.index != nil {
-				err := b.index.PrepareAndIndex(dataToPost)
-				if err != nil {
-					log.AppLog.E(b.DbCnf.Index, "prepare index error", zap.Error(err))
-				}
-			} else {
-				log.AppLog.E(b.DbCnf.Index, "prepare data to index (nil)")
-			}
-		}
+		b.followUserProtocol(dataToPost)
 		b.changes = nil
 	}
 	b.changesMu.Unlock()
+}
+
+func (b *Maker) followUserProtocol(dataToPost []map[string]interface{}) {
+	client := resty.New().R()
+	if b.DbCnf.MakerHeaders != nil && len(b.DbCnf.MakerHeaders) > 0 {
+		for _, header := range b.DbCnf.MakerHeaders {
+			client.SetHeader(header.HeaderKey, header.HeaderVal)
+		}
+	}
+	if b.DbCnf.MakerHook != "" {
+		client.SetBody(dataToPost)
+		log.AppLog.Info("data to post", zap.Any("data", dataToPost))
+		response, err := client.Post(b.DbCnf.MakerHook)
+		if err != nil {
+			log.AppLog.E(b.DbCnf.Index, "maker hook error", zap.Error(err))
+		}
+		log.AppLog.Info("maker hook response", zap.Any("response", response))
+	} else {
+		if b.index != nil {
+			err := b.index.PrepareAndIndex(dataToPost)
+			if err != nil {
+				log.AppLog.E(b.DbCnf.Index, "prepare index error", zap.Error(err))
+			}
+		} else {
+			log.AppLog.E(b.DbCnf.Index, "prepare data to index (nil)")
+		}
+	}
 }
 
 func (b *Maker) debounce(min time.Duration, max time.Duration, input chan *CanalEvent) chan *CanalEvent {
@@ -167,4 +210,22 @@ func (b *Maker) debounce(min time.Duration, max time.Duration, input chan *Canal
 	}()
 
 	return output
+}
+
+func (b *Maker) isFirstTimeFetchNeeded(table string) bool {
+	compareWith, err := strconv.ParseFloat(os.Getenv("FULL_SYNC_SINCE"), 64)
+	if err != nil {
+		panic("FULL_SYNC_SINCE env variable not set / invalid value")
+	}
+	v, err := internal.DB.Get(fmt.Sprintf("completed:%s:%s", b.DbCnf.Database, table), "")
+	if err == nil {
+		return true
+	}
+	t, err := time.Parse(time.DateTime, string(v))
+	if err == nil {
+		log.AppLog.E(b.DbCnf.Index, "isFirstTimeFetchNeeded date parse error", zap.String("table", table), zap.Any("value", string(v)))
+		return true
+	}
+	duration := time.Since(t).Minutes()
+	return !(duration > compareWith)
 }

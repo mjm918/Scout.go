@@ -76,7 +76,7 @@ func (a *Service) ListenForNewHost(ch chan interface{}) {
 }
 
 func getMasterStatus(dbCfg *models.DbConfig) (string, uint32, error) {
-	dsn := dbCfg.User + ":" + dbCfg.Password + "@tcp(" + dbCfg.Host + ":" + strconv.Itoa(int(dbCfg.SafePort())) + ")/"
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/", dbCfg.User, dbCfg.Password, dbCfg.Host, dbCfg.SafePort())
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return "", 0, err
@@ -109,7 +109,7 @@ func (a *Service) GetWatchman(dbCfg *models.DbConfig) (*Watchman, error) {
 		tables := util.Map(strings.Split(dbCfg.WatchTable, ","), func(t string) string {
 			return strings.Trim(dbCfg.Database, " ") + "." + strings.Trim(t, " ")
 		})
-		fmt.Printf("watching following tables %v\n", tables)
+
 		cfg := canal.NewDefaultConfig()
 		cfg.User = dbCfg.User
 		cfg.Password = dbCfg.Password
@@ -130,9 +130,13 @@ func (a *Service) GetWatchman(dbCfg *models.DbConfig) (*Watchman, error) {
 			log.AppLog.E(dbCfg.Index, "error creating canal instance", zap.Error(err), zap.String("host", dbCfg.Host))
 			return nil, nil
 		}
+
+		m := NewMaker(dbCfg)
+		go m.DoFirstTimeIndex()
+
 		w := Watchman{
 			Canal:   c,
-			Handler: NewScoutMySqlEventHandler(dbCfg),
+			Handler: NewScoutMySqlEventHandler(m),
 		}
 		c.SetEventHandler(w.Handler)
 
@@ -168,14 +172,16 @@ func (a *Service) monitorBinlogChanges(c *canal.Canal, dbCfg *models.DbConfig, s
 			startPos.Name = currentFile
 			startPos.Pos = currentPos
 
-			c.Close()
+			if c != nil {
+				c.Close()
+			}
 			c, err = canal.NewCanal(cfg) // Recreate the canal instance
 			if err != nil {
 				log.CanalLog.Error("error creating canal on rotate", zap.Error(err))
 				continue
 			}
 
-			c.SetEventHandler(NewScoutMySqlEventHandler(dbCfg))
+			c.SetEventHandler(NewScoutMySqlEventHandler(NewMaker(dbCfg)))
 			go c.RunFrom(startPos)
 		}
 	}

@@ -53,7 +53,7 @@ func (l *BaseLog) I(indexOrDb, msg string, args ...zapcore.Field) {
 }
 
 func CreateLogger() *zap.Logger {
-	return NewLogger("DEBUG", util.LogPath(), 10, 10, 1, false)
+	return NewLogger("DEBUG", util.LogPath(), 10, 1, 1, false)
 }
 
 func NewLogger(logLevel string, logFilename string, logMaxSize int, logMaxBackups int, logMaxAge int, logCompress bool) *zap.Logger {
@@ -244,6 +244,6 @@ func (c *CanalLogger) Warnln(args ...interface{}) {
 
 func NewCanalLogger() *CanalLogger {
 	return &CanalLogger{
-		Logger: NewLogger("DEBUG", util.CanalLogPath(), 10, 10, 1, false),
+		Logger: NewLogger("DEBUG", util.CanalLogPath(), 10, 1, 1, false),
 	}
 }

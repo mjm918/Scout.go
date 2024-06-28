@@ -11,6 +11,7 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
+	"github.com/zsais/go-gin-prometheus"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/acme/autocert"
 	"net/http"
@@ -27,6 +28,16 @@ func StartServer(log *zap.Logger) {
 	gin.SetMode(os.Getenv("MODE"))
 
 	router := gin.Default()
+
+	p := ginprometheus.NewPrometheus("gin")
+	p.ReqCntURLLabelMappingFn = func(c *gin.Context) string {
+		if c.Param("query") != "" && c.Param("index") != "" {
+			return c.Param("index")
+		}
+		return c.Request.URL.Path
+	}
+	p.Use(router)
+
 	// middleware setup - start
 	router.Use(ginzap.Ginzap(log, time.RFC3339, true))
 	router.Use(ginzap.RecoveryWithZap(log, true))
@@ -36,6 +47,7 @@ func StartServer(log *zap.Logger) {
 	// route setup - start
 	router.GET("/ping", routes.Ping)
 	router.GET("/indexes", routes.GetIndexes)
+	router.GET("/search/:index/:query/:offset/:limit", routes.GetSearch)
 	router.GET("/stats", routes.GetIndexStats)
 	router.PUT("/config", routes.PutConfig)
 	router.POST("/binlog", routes.PostDbConfigPerIndex)
@@ -44,7 +56,7 @@ func StartServer(log *zap.Logger) {
 	// route setup - end
 
 	srv := &http.Server{
-		Addr:    ":7040",
+		Addr:    fmt.Sprintf(":%s", os.Getenv("PORT")),
 		Handler: router,
 	}
 

@@ -3,8 +3,11 @@ package routes
 import (
 	"Scout.go/engine"
 	"Scout.go/models"
+	"Scout.go/reg"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"strconv"
 )
 
 func PutConfig(c *gin.Context) {
@@ -31,4 +34,43 @@ func GetIndexes(c *gin.Context) {
 
 func GetIndexStats(c *gin.Context) {
 	c.JSON(http.StatusOK, engine.IndexStats())
+}
+
+func GetSearch(c *gin.Context) {
+	idxName := c.Param("index")
+	if idxName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "index is required"})
+		return
+	}
+	query := c.Param("query")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query is required"})
+		return
+	}
+	index, err := reg.IndexByName(idxName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	offsetStr := c.Param("offset")
+	limitStr := c.Param("limit")
+
+	offset := 0
+	limit := 0
+
+	if offsetStr != "" {
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid offset: %s", err.Error())})
+			return
+		}
+	}
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid limit: %s", err.Error())})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, index.Query(query, offset, limit))
 }

@@ -17,24 +17,24 @@ func NewIndexMapping(config *models.IndexMapConfig) (*mapping.IndexMappingImpl, 
 		if searchable.Type == models.String {
 			textFieldMapping := bleve.NewTextFieldMapping()
 			textFieldMapping.Analyzer = standard.Name
-			textFieldMapping.Store = false
+			textFieldMapping.Store = true
 			docMap.AddFieldMappingsAt(searchable.Field, textFieldMapping)
 		}
 		if searchable.Type == models.Number {
 			numericFieldMapping := bleve.NewNumericFieldMapping()
-			numericFieldMapping.Store = false
+			numericFieldMapping.Store = true
 			numericFieldMapping.DocValues = true
 			docMap.AddFieldMappingsAt(searchable.Field, numericFieldMapping)
 		}
 		if searchable.Type == models.Boolean {
 			boolFieldMapping := bleve.NewBooleanFieldMapping()
-			boolFieldMapping.Store = false
+			boolFieldMapping.Store = true
 			boolFieldMapping.DocValues = true
 			docMap.AddFieldMappingsAt(searchable.Field, boolFieldMapping)
 		}
 		if searchable.Type == models.DateTime {
 			dateTimeFieldMapping := bleve.NewDateTimeFieldMapping()
-			dateTimeFieldMapping.Store = false
+			dateTimeFieldMapping.Store = true
 			dateTimeFieldMapping.DocValues = true
 			docMap.AddFieldMappingsAt(searchable.Field, dateTimeFieldMapping)
 		}

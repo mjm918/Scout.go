@@ -2,14 +2,12 @@ package internal
 
 import (
 	"Scout.go/util"
-	"encoding/binary"
 	"fmt"
 	"github.com/goccy/go-json"
 	"github.com/pingcap/log"
 	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -119,7 +117,7 @@ func (td *TempDisk) Get(key, bucket string) ([]byte, error) {
 }
 
 func (td *TempDisk) LogIt(value, indexOrDb string) {
-	err := td.Put(strconv.FormatInt(time.Now().Unix(), 10), value, indexOrDb)
+	err := td.Put(time.Now().Format(time.DateTime), value, indexOrDb)
 	if err != nil {
 		fmt.Printf("error dumping log %v", err.Error())
 		log.Error("error dumping log", zap.Error(err))
@@ -293,12 +291,10 @@ func (td *TempDisk) GetLogs(bucket string) ([]map[string]interface{}, error) {
 		count := 0
 		c := b.Cursor()
 		for k, vBytes := c.Last(); k != nil; k, vBytes = c.Prev() {
-			unixTimestamp := int64(binary.BigEndian.Uint64(k))
-			t := time.Unix(unixTimestamp, 0)
-			formattedTime := t.Format(time.RFC3339)
+			t, _ := time.Parse(time.DateTime, string(k))
 			result = append(result, map[string]interface{}{
 				string(k): string(vBytes),
-				"at":      formattedTime,
+				"at":      t,
 			})
 			if count == 150 {
 				break

@@ -7,6 +7,7 @@ import (
 	scoutmap "Scout.go/mapping"
 	"Scout.go/models"
 	"Scout.go/util"
+	"fmt"
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/index/scorch"
 	"github.com/blevesearch/bleve/v2/mapping"
@@ -280,4 +281,46 @@ func (i *Index) PrepareAndIndex(data []map[string]interface{}) error {
 	log.AppLog.I(i.Name(), "bulk indexing completed...", zap.Int("count", count))
 
 	return nil
+}
+
+func (i *Index) Query(query string, offset, limit int) map[string]interface{} {
+	start := time.Now()
+
+	h := 0
+	c := make([]map[string]interface{}, 0)
+
+	q := bleve.NewQueryStringQuery(query)
+	req := bleve.NewSearchRequestOptions(q, limit, offset, false)
+	//req := bleve.NewSearchRequest(q)
+	//req.Size = 50
+	res, err := i.Search(req)
+	if err == nil {
+		var wg sync.WaitGroup
+		var m sync.Mutex
+
+		h = res.Hits.Len()
+
+		for _, hit := range res.Hits {
+			wg.Add(1)
+			go func(id string, mx *sync.Mutex, w *sync.WaitGroup, cl *[]map[string]interface{}) {
+				defer w.Done()
+				m.Lock()
+				doc, err := i.Get(id)
+				if err == nil {
+					c = append(c, doc)
+				}
+				m.Unlock()
+			}(hit.ID, &m, &wg, &c)
+		}
+		wg.Wait()
+	} else {
+		fmt.Printf("[Error] ❌ %v %s\n", err.Error(), query)
+	}
+
+	return map[string]interface{}{
+		"execution": util.Elapsed(start),
+		"data":      c,
+		"query":     query,
+		"hits":      h,
+	}
 }
